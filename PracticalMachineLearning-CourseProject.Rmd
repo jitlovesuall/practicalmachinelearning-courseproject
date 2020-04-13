@@ -1,0 +1,103 @@
+---
+title: "PracticalMachineLearning-CourseProject"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading and preparing the data
+
+The following libraries are included for the assignment
+
+```{r, message=FALSE, warning=FALSE}
+library(rpart)
+library(rattle)
+library(caret)
+```
+
+First, we load the data from the CSV files to our data frames (one as our training data and the other as our test data for which we need to find the classe based on the model prepared from the training data).
+```{r, echo=TRUE}
+test_data = read.csv("C:/Users/apalchow/Desktop/Work_Avijit/Personal/My Learnings/Artificial Intelligence/Coursera Exercises/Practical Machine Learning - Course Exercise/Data/pml-testing.csv")
+train_data = read.csv("C:/Users/apalchow/Desktop/Work_Avijit/Personal/My Learnings/Artificial Intelligence/Coursera Exercises/Practical Machine Learning - Course Exercise/Data/pml-training.csv")
+
+dim(train_data)
+dim(test_data)
+```
+
+We see that the training data and the test data contains 160 columns. However, most of columns have NA values or blank values on almost all observations. These columns will not help much in extracting the real information. Hence, we would remove these columns where we see more 90% of the observations are either NA or blank. Also, the first 7 columns cannot act as predictors since they are sl numbers, names, dates, etc. So, we wpould remove these columns as well.
+```{r, echo=TRUE}
+indColToRemove <- which(colSums(is.na(train_data) |train_data=="")>0.9*dim(train_data)[1])
+train_data_clean = train_data[,-indColToRemove]
+train_data_clean = train_data_clean[,-c(1:7)]
+
+indColToRemove <- which(colSums(is.na(test_data) |test_data=="")>0.9*dim(test_data)[1])
+test_data_clean = test_data[,-indColToRemove]
+test_data_clean = test_data_clean[,-c(1:7)]
+
+dim(train_data_clean)
+dim(test_data_clean)
+```
+
+Now we see we have 53 predictors to create the model.
+Next, we need to partition the training data into a training set and a validation set. The training set will serve the purpose of creating the model. The validation set will judge the performance of the model in terms of accuracy.
+```{r, echo=TRUE}
+set.seed(123)
+data_in_train = createDataPartition(train_data_clean$classe, p=0.75, list=FALSE)
+training_data = train_data_clean[data_in_train,]
+validation_data = train_data_clean[-data_in_train,] 
+
+table(training_data$classe) / table(validation_data$classe)
+```
+The training set and the validation set has been segregated in the right proportion for each of the classes. 
+
+## Creating the models
+Here, we will create 3 models and then try to understand which one of the 3 is better to use to predict the classe of the 20 test observations.
+a. Decision tree model
+b. Random forest
+c. Gradient boosting model
+
+### a. Decision Tree Model
+Let us create the model with the training set and then predict the same with the validation set. Then look at the confusion matrix to see the accuracy. 
+
+```{r, echo=TRUE}
+decision_tree_model = rpart(classe ~ ., data=training_data, method="class")
+predict_tree_model = predict(decision_tree_model, validation_data, type = "class")
+cm_tree = confusionMatrix(predict_tree_model, validation_data$classe)
+cm_tree
+```
+
+The accuracy is 0.7486.
+
+### b. Random Forest
+
+```{r, echo=TRUE}
+controlRF = trainControl(method="cv", number=5, verboseIter=FALSE)
+RF_model = train(classe ~ ., data=training_data, method="rf", trControl=controlRF)
+predict_rf_model = predict(RF_model, validation_data)
+cm_rf = confusionMatrix(predict_rf_model, validation_data$classe)
+cm_rf
+```
+
+Analysing the confusion matrix for the random forest model shows that the accuracy is 0.9939.
+
+### c. Gradient Boosting model
+
+```{r, echo=TRUE}
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+GBM_model  <- train(classe ~ ., data=training_data, method = "gbm", trControl = controlGBM, verbose = FALSE)
+predict_GBM_model = predict(GBM_model, validation_data)
+cm_GBM <- confusionMatrix(predict_GBM_model, validation_data$classe)
+cm_GBM
+```
+
+Analysing the confusion matrix for the gradient boosting model shows that the accuracy is 0.9625.
+
+## Conclusion
+We see that the random forest model performs the best and we will use this model to predict the classe of the 20 test observations.
+
+```{r, echo=TRUE}
+result = predict(RF_model, test_data_clean)
+result
+```
